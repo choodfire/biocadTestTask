@@ -103,6 +103,38 @@ func addToDB(newLogs []logRow, tableName string) {
 	}
 }
 
+func logsToFile(newLogs []logRow) {
+	if _, err := os.Stat("./output"); os.IsNotExist(err) {
+		// folder output doesn't exist
+
+		err := os.Mkdir("./output", 0755)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	for _, newLog := range newLogs {
+		currentFilename := "./output/" + newLog.unit_guid + ".doc"
+
+		file, err := os.OpenFile(currentFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = file.Write([]byte(fmt.Sprintf("%d %s %s %s %s %s %s %s %d %s %s %s %s %s\n",
+			newLog.n, newLog.mqtt, newLog.invid, newLog.unit_guid, newLog.msg_id, newLog.text, newLog.context,
+			newLog.class, newLog.level, newLog.area, newLog.addr, newLog.block, newLog.typee, newLog.bit)))
+		if err != nil {
+			file.Close()
+			log.Fatal(err)
+		}
+
+		if err := file.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -153,8 +185,7 @@ func main() {
 		newLogs = append(newLogs, parseTSV(directory+"\\"+file.Name())...)
 	}
 
-	// insert to DB
-
 	addToDB(newLogs, tableName)
 
+	logsToFile(newLogs)
 }
