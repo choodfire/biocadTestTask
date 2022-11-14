@@ -43,7 +43,9 @@ func contains[T comparable](arr []T, val T) bool {
 	return false
 }
 
-func parseTSV(filePath string) {
+func parseTSV(filePath string) []logRow {
+	newLogs := []logRow{}
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		panic(err)
@@ -87,16 +89,18 @@ func parseTSV(filePath string) {
 
 		logs = append(logs, currentLog)
 
-		// insert row to db
-		addToDB(currentLog)
+		newLogs = append(newLogs, currentLog)
 	}
+
+	return newLogs
 }
 
-func addToDB(currentLog logRow) {
-	_, _ = db.Exec("INSERT INTO data"+
-		" (n, mqtt, invid, unit_guid, msg_id, text, context, class, level, area, addr, block, type, bit) "+
-		"VALUES (?, ?, ?)", currentLog.n, currentLog.mqtt, currentLog.invid, currentLog.unit_guid, currentLog.msg_id, currentLog.text,
-		currentLog.context, currentLog.class, currentLog.level, currentLog.area, currentLog.addr, currentLog.block, currentLog.typee, currentLog.bit)
+func addToDB(newLogs []logRow, tableName string) {
+	for _, currentLog := range newLogs {
+		_, _ = db.Exec("INSERT INTO "+tableName+" (n, mqtt, invid, unit_guid, msg_id, text, context, class, level, area, addr, block, type, bit) "+
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", currentLog.n, currentLog.mqtt, currentLog.invid, currentLog.unit_guid, currentLog.msg_id, currentLog.text,
+			currentLog.context, currentLog.class, currentLog.level, currentLog.area, currentLog.addr, currentLog.block, currentLog.typee, currentLog.bit)
+	}
 }
 
 func main() {
@@ -111,11 +115,12 @@ func main() {
 	password := os.Getenv("PASSWORD")
 	host := os.Getenv("HOST")
 	port := os.Getenv("PORT")
-	dbname := os.Getenv("DBNAME")
+	dbName := os.Getenv("DBNAME")
+	tableName := os.Getenv("TABLENAME")
 	directory := os.Getenv("DIRECTORY") // absolute path
 
 	// connect to db
-	db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbname))
+	db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
 	if err != nil {
 		// shut down no db connection
 		log.Fatal(err)
@@ -139,10 +144,17 @@ func main() {
 		log.Fatal(err)
 	}
 
+	newLogs := []logRow{}
 	for _, file := range files {
 		if contains(checkedFiles, file.Name()) { // if file already checked
 			continue
 		}
-		parseTSV(directory + "\\" + file.Name())
+
+		newLogs = append(newLogs, parseTSV(directory+"\\"+file.Name())...)
 	}
+
+	// insert to DB
+
+	addToDB(newLogs, tableName)
+
 }
