@@ -44,6 +44,22 @@ func getData(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, results)
 }
 
+func connectToDB(username, password, host, port, dbName string) {
+	// connect to db
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
+	if err != nil {
+		// shut down no db connection
+		log.Fatal(err)
+	}
+
+	// check if connection is successful
+	err = db.Ping()
+	if err != nil {
+		// shut down no db connection
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -58,19 +74,7 @@ func main() {
 	port := os.Getenv("PORT")
 	dbName := os.Getenv("DBNAME")
 
-	// connect to db
-	db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
-	if err != nil {
-		// shut down no db connection
-		log.Fatal(err)
-	}
-
-	// check if connection is successful
-	err = db.Ping()
-	if err != nil {
-		// shut down no db connection
-		log.Fatal(err)
-	}
+	connectToDB(username, password, host, port, dbName)
 
 	router := gin.Default()
 	router.GET("/data/:unit_guid", getData)

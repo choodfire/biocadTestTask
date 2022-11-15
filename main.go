@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var checkedFiles []string
@@ -119,24 +120,9 @@ func logsToFile(newLogs []data.LogRow) {
 	}
 }
 
-func main() {
-	err := godotenv.Load()
-	if err != nil {
-		// no credentials
-		log.Fatal(err)
-	}
-
-	// get credentials from env
-	username := os.Getenv("DBUSERNAME")
-	password := os.Getenv("PASSWORD")
-	host := os.Getenv("HOST")
-	port := os.Getenv("PORT")
-	dbName := os.Getenv("DBNAME")
-	tableName := os.Getenv("TABLENAME")
-	directory := os.Getenv("DIRECTORY") // absolute path
-
+func connectToDB(username, password, host, port, dbName string) {
 	// connect to db
-	db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
 	if err != nil {
 		// no db connection
 		log.Fatal(err)
@@ -153,23 +139,47 @@ func main() {
 	//db.SetConnMaxLifetime(time.Minute * 3)
 	//db.SetMaxOpenConns(10)
 	//db.SetMaxIdleConns(10)
+}
 
-	files, err := os.ReadDir(directory)
+func main() {
+	err := godotenv.Load()
 	if err != nil {
-		// wrong directory
+		// no credentials
 		log.Fatal(err)
 	}
 
-	newLogs := []data.LogRow{}
-	for _, file := range files {
-		if contains(checkedFiles, file.Name()) { // if file already checked
-			continue
+	// get credentials from env
+	username := os.Getenv("DBUSERNAME")
+	password := os.Getenv("PASSWORD")
+	host := os.Getenv("HOST")
+	port := os.Getenv("PORT")
+	dbName := os.Getenv("DBNAME")
+	tableName := os.Getenv("TABLENAME")
+	directory := os.Getenv("DIRECTORY") // absolute path
+
+	connectToDB(username, password, host, port, dbName)
+
+	// loop from here
+	for true { // периодический осмотр директории
+		files, err := os.ReadDir(directory)
+		if err != nil {
+			// wrong directory
+			log.Fatal(err)
 		}
 
-		newLogs = append(newLogs, parseTSV(directory+"\\"+file.Name())...)
+		newLogs := []data.LogRow{}
+		for _, file := range files {
+			if contains(checkedFiles, file.Name()) { // if file already checked
+				continue
+			}
+
+			newLogs = append(newLogs, parseTSV(directory+"\\"+file.Name())...)
+		}
+
+		addToDB(newLogs, tableName)
+
+		logsToFile(newLogs)
+
+		time.Sleep(1 * time.Minute)
 	}
-
-	addToDB(newLogs, tableName)
-
-	logsToFile(newLogs)
 }
