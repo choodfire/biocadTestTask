@@ -1,6 +1,7 @@
 package main
 
 import (
+	"biocadTestTask/data"
 	"bufio"
 	"database/sql"
 	"fmt"
@@ -13,25 +14,8 @@ import (
 )
 
 var checkedFiles []string
-var logs []logRow
+var logs []data.LogRow
 var db *sql.DB
-
-type logRow struct {
-	n         int
-	mqtt      string
-	invid     string
-	unit_guid string // globally unique identifier
-	msg_id    string
-	text      string
-	context   string
-	class     string
-	level     int
-	area      string
-	addr      string
-	block     string
-	typee     string // can't use word 'type' in Go
-	bit       string
-}
 
 func contains[T comparable](arr []T, val T) bool {
 	for _, elem := range arr {
@@ -43,8 +27,8 @@ func contains[T comparable](arr []T, val T) bool {
 	return false
 }
 
-func parseTSV(filePath string) []logRow {
-	newLogs := []logRow{}
+func parseTSV(filePath string) []data.LogRow {
+	newLogs := []data.LogRow{}
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -70,21 +54,21 @@ func parseTSV(filePath string) []logRow {
 		thisN, _ := strconv.Atoi(args[0])
 		thisLevel, _ := strconv.Atoi(args[8])
 
-		currentLog := logRow{
-			n:         thisN,
-			mqtt:      args[1],
-			invid:     args[2],
-			unit_guid: args[3],
-			msg_id:    args[4],
-			text:      args[5],
-			context:   args[6],
-			class:     args[7],
-			level:     thisLevel,
-			area:      args[9],
-			addr:      args[10],
-			block:     args[11],
-			typee:     args[12],
-			bit:       args[13],
+		currentLog := data.LogRow{
+			N:         thisN,
+			Mqtt:      args[1],
+			Invid:     args[2],
+			Unit_guid: args[3],
+			Msg_id:    args[4],
+			Text:      args[5],
+			Context:   args[6],
+			Class:     args[7],
+			Level:     thisLevel,
+			Area:      args[9],
+			Addr:      args[10],
+			Block:     args[11],
+			Typee:     args[12],
+			Bit:       args[13],
 		}
 
 		logs = append(logs, currentLog)
@@ -95,15 +79,15 @@ func parseTSV(filePath string) []logRow {
 	return newLogs
 }
 
-func addToDB(newLogs []logRow, tableName string) {
+func addToDB(newLogs []data.LogRow, tableName string) {
 	for _, currentLog := range newLogs {
 		_, _ = db.Exec("INSERT INTO "+tableName+" (n, mqtt, invid, unit_guid, msg_id, text, context, class, level, area, addr, block, type, bit) "+
-			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", currentLog.n, currentLog.mqtt, currentLog.invid, currentLog.unit_guid, currentLog.msg_id, currentLog.text,
-			currentLog.context, currentLog.class, currentLog.level, currentLog.area, currentLog.addr, currentLog.block, currentLog.typee, currentLog.bit)
+			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", currentLog.N, currentLog.Mqtt, currentLog.Invid, currentLog.Unit_guid, currentLog.Msg_id, currentLog.Text,
+			currentLog.Context, currentLog.Class, currentLog.Level, currentLog.Area, currentLog.Addr, currentLog.Block, currentLog.Typee, currentLog.Bit)
 	}
 }
 
-func logsToFile(newLogs []logRow) {
+func logsToFile(newLogs []data.LogRow) {
 	if _, err := os.Stat("./output"); os.IsNotExist(err) {
 		// folder output doesn't exist
 
@@ -114,7 +98,7 @@ func logsToFile(newLogs []logRow) {
 	}
 
 	for _, newLog := range newLogs {
-		currentFilename := "./output/" + newLog.unit_guid + ".doc"
+		currentFilename := "./output/" + newLog.Unit_guid + ".doc"
 
 		file, err := os.OpenFile(currentFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -122,8 +106,8 @@ func logsToFile(newLogs []logRow) {
 		}
 
 		_, err = file.Write([]byte(fmt.Sprintf("%d %s %s %s %s %s %s %s %d %s %s %s %s %s\n",
-			newLog.n, newLog.mqtt, newLog.invid, newLog.unit_guid, newLog.msg_id, newLog.text, newLog.context,
-			newLog.class, newLog.level, newLog.area, newLog.addr, newLog.block, newLog.typee, newLog.bit)))
+			newLog.N, newLog.Mqtt, newLog.Invid, newLog.Unit_guid, newLog.Msg_id, newLog.Text, newLog.Context,
+			newLog.Class, newLog.Level, newLog.Area, newLog.Addr, newLog.Block, newLog.Typee, newLog.Bit)))
 		if err != nil {
 			file.Close()
 			log.Fatal(err)
@@ -138,7 +122,7 @@ func logsToFile(newLogs []logRow) {
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		// shut down cause no info
+		// no credentials
 		log.Fatal(err)
 	}
 
@@ -154,14 +138,14 @@ func main() {
 	// connect to db
 	db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
 	if err != nil {
-		// shut down no db connection
+		// no db connection
 		log.Fatal(err)
 	}
 
 	// check if connection is successful
 	err = db.Ping()
 	if err != nil {
-		// shut down no db connection
+		// no db connection
 		log.Fatal(err)
 	}
 
@@ -176,7 +160,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	newLogs := []logRow{}
+	newLogs := []data.LogRow{}
 	for _, file := range files {
 		if contains(checkedFiles, file.Name()) { // if file already checked
 			continue
