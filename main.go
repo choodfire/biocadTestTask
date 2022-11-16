@@ -14,9 +14,6 @@ import (
 	"time"
 )
 
-var checkedFiles []string
-var logs []data.LogRow
-
 func contains[T comparable](arr []T, val T) bool {
 	for _, elem := range arr {
 		if elem == val {
@@ -27,7 +24,7 @@ func contains[T comparable](arr []T, val T) bool {
 	return false
 }
 
-func parseTSV(filePath string) []data.LogRow {
+func parseTSV(filePath string, allLogs []data.LogRow) []data.LogRow {
 	newLogs := []data.LogRow{}
 
 	file, err := os.Open(filePath)
@@ -71,7 +68,7 @@ func parseTSV(filePath string) []data.LogRow {
 			Bit:       args[13],
 		}
 
-		logs = append(logs, currentLog)
+		allLogs = append(allLogs, currentLog)
 
 		newLogs = append(newLogs, currentLog)
 	}
@@ -143,6 +140,9 @@ func connectToDB(username, password, host, port, dbName string) *sql.DB {
 }
 
 func main() {
+	var checkedFiles []string
+	var logs []data.LogRow
+
 	err := godotenv.Load()
 	if err != nil {
 		// no credentials
@@ -175,7 +175,9 @@ func main() {
 				continue
 			}
 
-			newLogs = append(newLogs, parseTSV(directory+"\\"+file.Name())...)
+			absPath := directory + "\\" + file.Name()
+			newLogs = append(newLogs, parseTSV(absPath, logs)...)
+			checkedFiles = append(checkedFiles, absPath)
 		}
 
 		addToDB(newLogs, tableName, db)
