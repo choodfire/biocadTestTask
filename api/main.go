@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 )
 
 type Env struct {
@@ -20,8 +21,6 @@ func (e *Env) getData(c *gin.Context) {
 	tableName := os.Getenv("TABLENAME")
 
 	unit_guid := c.Param("unit_guid")
-
-	fmt.Println(e.db)
 
 	// SELECT * FROM maintable WHERE unit_guid = 'cold7_Defrost_status';
 	res, err := e.db.Query("SELECT * FROM `" + tableName + "` WHERE unit_guid = '" + unit_guid + "'")
@@ -43,9 +42,17 @@ func (e *Env) getData(c *gin.Context) {
 		results = append(results, currentLog)
 	}
 
-	fmt.Println(results)
+	limit := 10
+	pageStr := c.Param("page")
+	page, _ := strconv.Atoi(pageStr)
 
-	c.IndentedJSON(http.StatusOK, results)
+	lowerBound := limit*page - (limit - 1)
+	upperBound := limit*page + 1
+
+	if upperBound > len(results) {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "Page not found."})
+	}
+	c.IndentedJSON(http.StatusOK, results[lowerBound:upperBound])
 }
 
 func connectToDB(username, password, host, port, dbName string) *sql.DB {
@@ -86,6 +93,6 @@ func main() {
 	router := gin.Default()
 	env := &Env{db: db}
 
-	router.GET("/data/:unit_guid", env.getData)
+	router.GET("/data/:unit_guid/:page", env.getData)
 	router.Run("localhost:8080")
 }
