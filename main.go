@@ -16,7 +16,6 @@ import (
 
 var checkedFiles []string
 var logs []data.LogRow
-var db *sql.DB
 
 func contains[T comparable](arr []T, val T) bool {
 	for _, elem := range arr {
@@ -80,7 +79,7 @@ func parseTSV(filePath string) []data.LogRow {
 	return newLogs
 }
 
-func addToDB(newLogs []data.LogRow, tableName string) {
+func addToDB(newLogs []data.LogRow, tableName string, db *sql.DB) {
 	for _, currentLog := range newLogs {
 		_, _ = db.Exec("INSERT INTO "+tableName+" (n, mqtt, invid, unit_guid, msg_id, text, context, class, level, area, addr, block, type, bit) "+
 			"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", currentLog.N, currentLog.Mqtt, currentLog.Invid, currentLog.Unit_guid, currentLog.Msg_id, currentLog.Text,
@@ -120,7 +119,7 @@ func logsToFile(newLogs []data.LogRow) {
 	}
 }
 
-func connectToDB(username, password, host, port, dbName string) {
+func connectToDB(username, password, host, port, dbName string) *sql.DB {
 	// connect to db
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
 	if err != nil {
@@ -139,6 +138,8 @@ func connectToDB(username, password, host, port, dbName string) {
 	//db.SetConnMaxLifetime(time.Minute * 3)
 	//db.SetMaxOpenConns(10)
 	//db.SetMaxIdleConns(10)
+
+	return db
 }
 
 func main() {
@@ -157,7 +158,8 @@ func main() {
 	tableName := os.Getenv("TABLENAME")
 	directory := os.Getenv("DIRECTORY") // absolute path
 
-	connectToDB(username, password, host, port, dbName)
+	db := connectToDB(username, password, host, port, dbName)
+	defer db.Close()
 
 	// loop from here
 	for true { // периодический осмотр директории
@@ -176,7 +178,7 @@ func main() {
 			newLogs = append(newLogs, parseTSV(directory+"\\"+file.Name())...)
 		}
 
-		addToDB(newLogs, tableName)
+		addToDB(newLogs, tableName, db)
 
 		logsToFile(newLogs)
 

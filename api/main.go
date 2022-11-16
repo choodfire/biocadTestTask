@@ -12,15 +12,19 @@ import (
 	"os"
 )
 
-var db *sql.DB
+type Env struct {
+	db *sql.DB
+}
 
-func getData(c *gin.Context) {
+func (e *Env) getData(c *gin.Context) {
 	tableName := os.Getenv("TABLENAME")
 
 	unit_guid := c.Param("unit_guid")
 
+	fmt.Println(e.db)
+
 	// SELECT * FROM maintable WHERE unit_guid = 'cold7_Defrost_status';
-	res, err := db.Query("SELECT * FROM " + tableName + " WHERE unit_guid = '" + unit_guid + "'")
+	res, err := e.db.Query("SELECT * FROM `" + tableName + "` WHERE unit_guid = '" + unit_guid + "'")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,7 +48,7 @@ func getData(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, results)
 }
 
-func connectToDB(username, password, host, port, dbName string) {
+func connectToDB(username, password, host, port, dbName string) *sql.DB {
 	// connect to db
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", username, password, host, port, dbName))
 	if err != nil {
@@ -58,6 +62,8 @@ func connectToDB(username, password, host, port, dbName string) {
 		// shut down no db connection
 		log.Fatal(err)
 	}
+
+	return db
 }
 
 func main() {
@@ -74,9 +80,12 @@ func main() {
 	port := os.Getenv("PORT")
 	dbName := os.Getenv("DBNAME")
 
-	connectToDB(username, password, host, port, dbName)
+	db := connectToDB(username, password, host, port, dbName)
+	defer db.Close()
 
 	router := gin.Default()
-	router.GET("/data/:unit_guid", getData)
+	env := &Env{db: db}
+
+	router.GET("/data/:unit_guid", env.getData)
 	router.Run("localhost:8080")
 }
